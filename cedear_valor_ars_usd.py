@@ -68,41 +68,33 @@ if __name__ == "__main__":
     driver = webdriver.Firefox(options=options)#, executable_path=firefox_path)
     base_url = 'https://www.invertironline.com/'
     precio_cedear= cotizacion_cedears(driver,base_url)
-
+    precio_cedear_df=pd.DataFrame(precio_cedear).rename(columns={'name': 'Ticker_AR','cotizacion':'precio_ars'})
+    
+    lista_cedear=pd.read_csv('listado_cedear.txt',sep='\t',encoding='ansi')
+    
+    cedear_info=pd.merge(lista_cedear,precio_cedear_df,on='Ticker_AR')
+    
+    cedear_info.columns
     #https://pypi.org/project/yfinance/
     driver.quit()
-    my_tickers = ['AAPL','MSFT','TX','GOLD']
+    my_tickers = lista_cedear['Ticker_NYSE'].to_list()
     stock_data=yf.download(my_tickers,period='1d',interval='15m')['Adj Close']
     
-    stock_prices={}
-    for ticker,price_list in stock_data.iteritems():
-        stock_prices[ticker]=price_list[price_list.last_valid_index()]
     
-
-    
-    equivalencia={'TX':{'Cedear':'TXR','Ratio':2},
-                  'AAPL':{'Cedear':'AAPL','Ratio':10},
-                  'MSFT':{'Cedear':'MSFT','Ratio':5},
-                  'GOLD':{'Cedear':'GOLD','Ratio':1},
-                  }
-    cedear_usd={}
-    for ticker in equivalencia:
-        nombre_cedear=equivalencia[ticker]['Cedear']
-        for i in precio_cedear:
-            if i['name']==nombre_cedear:
-                valor_usd=stock_prices[ticker]
-                valor_ars=i['cotizacion']
-                ratio=equivalencia[ticker]['Ratio']
-                usd_ars_implicito=valor_ars*ratio/valor_usd
-                cedear_usd[nombre_cedear]= \
-                {'nombre_Cedear':nombre_cedear,
-                 'nombre_NYSE':ticker,
-                 'valor_ars':valor_ars,
-                 'valor_usd':valor_usd,
-                 'usd_ars_implicito':usd_ars_implicito}
+    ticker_list=[]
+    price_list=[]
+    for ticker,price_series in stock_data.iteritems():
+        last_valid_index=price_series.last_valid_index()
+        if last_valid_index is not None:
+            ticker_list.append(ticker)
+            price_list.append(price_series[price_series.last_valid_index()])
+        
+        
+    stock_prices=pd.DataFrame({'Ticker_NYSE':ticker_list,'precio_usd':price_list})
+     
+    all_data=pd.merge(cedear_info,stock_prices, on='Ticker_NYSE') \
+        .sort_values(by='volumen',ascending=False)
+    all_data['usd_ars']=all_data['Ratio']*all_data['precio_ars']/all_data['precio_usd']
 
 
-    flat_data=[elems for name,elems in  cedear_usd.items()]
-    df_data=pd.DataFrame(flat_data)
 
-    
